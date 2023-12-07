@@ -1,0 +1,66 @@
+SELECT A1.MSISDN, A1.GSM_ACTIVE, CASE WHEN A2.MSISDN IS NOT NULL THEN 'YES ' ELSE 'NO' END AS MFS_ACTIVE
+FROM
+(
+    SELECT T1.MSISDN, CASE WHEN T2.SUBSCRIBER_NUMBER IS NOT NULL THEN 'YES ' ELSE 'NO' END AS GSM_ACTIVE
+    fROM 
+    (
+        SELECT DISTINCT TR_AGENTID_B as MSISDN
+        FROM DWH_UTIBA.TRANSACTIONS@EXADATA_LN T2
+            WHERE TR_LAST_MODIFIED BETWEEN TO_DATE ('1-JUN-2023 00:00:00','dd-mon-yyyy hh24:mi:ss') AND TO_DATE('31-JUL-2023 23:59:59','dd-mon-yyyy hh24:mi:ss')
+            AND TR_RESULT in ('Success', 'Completed')                               
+            AND TR_STATE in ('Success', 'Completed')  
+            AND TP_AMOUNT IS NOT NULL        
+            and TR_AGENT_B_GROUPS = 'subscriber'
+            AND TR_AGENTID_B  LIKE '509%'  
+            AND TR_TYPE_ IN ('topup_gift','self_topup')
+        MINUS
+        SELECT DISTINCT TR_AGENTID_B as MSISDN
+        FROM DWH_UTIBA.TRANSACTIONS@EXADATA_LN T2
+            WHERE TR_LAST_MODIFIED BETWEEN TO_DATE ('1-AUG-2023 00:00:00','dd-mon-yyyy hh24:mi:ss') AND TO_DATE('27-SEP-2023 23:59:59','dd-mon-yyyy hh24:mi:ss')
+            AND TR_RESULT in ('Success', 'Completed')                               
+            AND TR_STATE in ('Success', 'Completed')  
+            AND TP_AMOUNT IS NOT NULL        
+            and TR_AGENT_B_GROUPS = 'subscriber'
+            AND TR_AGENTID_B  LIKE '509%'  
+            AND TR_TYPE_ IN ('topup_gift','self_topup')
+    )T1
+    LEFT JOIN  DWH_REPORTING.FT_ACTIVESUBS_30D@EXADATA_LN T2 
+    ON T1.MSISDN=T2.SUBSCRIBER_NUMBER
+        WHERE T2.DATE_CODE = TRUNC(SYSDATE)-1 
+)A1
+LEFT JOIN 
+(
+    SELECT DISTINCT TR_AGENTID_B as MSISDN
+    FROM DWH_UTIBA.TRANSACTIONS@EXADATA_LN T2
+        WHERE TR_LAST_MODIFIED BETWEEN TO_DATE ('1-AUG-2023 00:00:00','dd-mon-yyyy hh24:mi:ss') AND TO_DATE('27-SEP-2023 23:59:59','dd-mon-yyyy hh24:mi:ss')
+        AND TR_RESULT in ('Success', 'Completed')                               
+        AND TR_STATE in ('Success', 'Completed')  
+        AND TP_AMOUNT IS NOT NULL        
+        and TR_AGENT_B_GROUPS = 'subscriber'
+        AND TR_AGENTID_B  LIKE '509%'  
+        AND TR_TYPE_ IN ('cashout', 'subscriberp2p', 'billpay', 'pay2merchant', 'obillpay')
+    UNION 
+    SELECT DISTINCT TR_AGENTID_A AS MSISDN
+    FROM DWH_UTIBA.TRANSACTIONS@EXADATA_LN 
+        WHERE TR_LAST_MODIFIED BETWEEN TO_DATE ('1-AUG-2023 00:00:00','dd-mon-yyyy hh24:mi:ss') AND TO_DATE('27-SEP-2023 23:59:59','dd-mon-yyyy hh24:mi:ss')
+        AND TR_RESULT IN ('Success', 'Completed')
+        AND TR_STATE IN ('Success', 'Completed')
+        AND TP_AMOUNT IS NOT NULL
+        AND TR_AGENTID_A LIKE '509%'
+        AND TR_AGENT_A_GROUPS='subscriber'
+        AND TR_TYPE_ IN ('cashin', 'cashin_self', 'iremit')
+    UNION 
+    SELECT DISTINCT TR_AGENTID_A AS MSISDN
+    FROM DWH_UTIBA.TRANSACTIONS@EXADATA_LN
+        WHERE TR_LAST_MODIFIED BETWEEN TO_DATE ('1-AUG-2023 00:00:00','dd-mon-yyyy hh24:mi:ss') AND TO_DATE('27-SEP-2023 23:59:59','dd-mon-yyyy hh24:mi:ss')
+        AND TR_RESULT in ( 'Success', 'Completed')                               
+        AND TR_STATE in ( 'Success', 'Completed')                       
+        AND TP_AMOUNT IS NOT NULL
+        AND TR_AGENTID_B = 'bank'
+        AND TR_AGENTID_A  LIKE '509%'
+        and TR_AGENT_A_GROUPS = 'subscriber'
+        AND TR_TYPE_ IN ('mtransfer')   
+)A2
+        ON A1.MSISDN=A2.MSISDN
+;
+
